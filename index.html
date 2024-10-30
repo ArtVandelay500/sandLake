@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Wave Effect with Ball</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: black; }
+        canvas { display: block; }
+        
+        /* Modern and minimalist toggle button */
+        #modeButton {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 40px;
+            height: 40px;
+            background-color: #444;
+            border: none;
+            border-radius: 50%; /* Rounded button */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 20px;
+            color: white;
+            transition: background-color 0.3s, color 0.3s;
+            z-index: 1;
+        }
+        #modeButton.light-mode {
+            background-color: #fff;
+            color: #444;
+        }
+        #modeButton::before {
+            content: '☾'; /* Moon icon for dark mode */
+            font-size: 20px;
+            transition: transform 0.3s;
+        }
+        #modeButton.light-mode::before {
+            content: '☀'; /* Sun icon for light mode */
+            transform: rotate(360deg);
+        }
+    </style>
+</head>
+<body>
+    <button id="modeButton"></button>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <canvas id="canvas"></canvas>
+    <script>
+        // Basic Three.js Setup
+        const canvas = document.getElementById('canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 5;
+
+        // Plane Geometry for Wave Effect
+        const geometry = new THREE.PlaneGeometry(2, 2);
+
+        // GLSL Shader
+        const material = new THREE.ShaderMaterial({
+            uniforms: {
+                u_time: { value: 0.0 },
+                u_resolution: { value: { x: window.innerWidth, y: window.innerHeight } },
+                u_colorInvert: { value: 0 } // 0 for dark mode, 1 for light mode
+            },
+            vertexShader: `
+                void main() {
+                    gl_Position = vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float u_time;
+                uniform vec2 u_resolution;
+                uniform int u_colorInvert;
+
+                float random(vec2 st) {
+                    return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+                }
+
+                void main() {
+                    vec2 st = gl_FragCoord.xy / u_resolution;
+
+                    float pixelSize = 0.0001;
+                    vec2 gridPos = floor(st / pixelSize) * pixelSize;
+
+                    float wave1 = sin((gridPos.x * (2.5 + sin(u_time * 0.15) * 1.2) + u_time * 0.6) + random(gridPos) * 3.14) * 
+                                  cos((gridPos.y * (12.0 + cos(u_time * 0.2) * 1.3) - u_time * 0.5) + random(gridPos) * 3.14) * 0.9;
+
+                    float wave2 = sin((gridPos.x * (10.0 + cos(u_time * 0.12) * 1.5) - u_time * 0.9) + random(gridPos) * 3.14) * 
+                                  cos((gridPos.y * (16.0 + sin(u_time * 0.1) * 1.6) + u_time * 0.8) + random(gridPos) * 3.14) * 0.7;
+
+                    float wave3 = sin((gridPos.x * (8.0 + sin(u_time * 0.1) * 2.0) + u_time * 5.2) + random(gridPos) * 3.14) * 
+                                  cos((gridPos.y * (5.0 + cos(u_time * 0.12) * 1.8) - u_time * 1.3) + random(gridPos) * 3.14) * 0.5;
+
+                    float wave = wave1 + wave2 * 0.8 + wave3 * 0.6;
+                    float intensity = smoothstep(0.0, 0.6, wave);
+
+                    vec3 baseColor = u_colorInvert == 0 ? vec3(0.08, 0.08, 0.12) : vec3(0.9, 0.9, 0.9); 
+                    vec3 grainColor = u_colorInvert == 0 ? vec3(0.2, 0.2, 0.25) : vec3(0.7, 0.7, 0.7); 
+
+                    vec3 color = mix(baseColor, grainColor, intensity);
+
+                    gl_FragColor = vec4(color, 1.0);
+                }
+            `,
+            transparent: true
+        });
+
+        const plane = new THREE.Mesh(geometry, material);
+        scene.add(plane);
+
+        // Resize Handling
+        window.addEventListener('resize', () => {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            renderer.setSize(width, height);
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            material.uniforms.u_resolution.value.x = width;
+            material.uniforms.u_resolution.value.y = height;
+        });
+
+        // Toggle dark/light mode functionality
+        const modeButton = document.getElementById('modeButton');
+        let isDarkMode = true;
+
+        modeButton.addEventListener('click', () => {
+            isDarkMode = !isDarkMode;
+            material.uniforms.u_colorInvert.value = isDarkMode ? 0 : 1;
+            modeButton.classList.toggle('light-mode', !isDarkMode);
+            document.body.style.backgroundColor = isDarkMode ? 'black' : 'white';
+            canvas.style.backgroundColor = isDarkMode ? 'black' : 'white';
+
+            material.needsUpdate = true;
+            renderer.render(scene, camera);
+        });
+
+        // Animation Loop
+        function animate(time) {
+            time *= 0.001; // Convert to seconds
+            material.uniforms.u_time.value = time;
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        animate();
+    </script>
+</body>
+</html>
